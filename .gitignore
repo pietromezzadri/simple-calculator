@@ -2,6 +2,7 @@
 backend/server
 backend/*.exe
 *.out
+backend/coverage.html
 
 # Node
 node_modules/
