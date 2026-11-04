@@ -10,8 +10,8 @@ All arithmetic happens on the backend, in decimal rather than floating point, so
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-dark.jpg">
-    <img src="docs/screenshot-light.jpg" alt="The calculator's keypad and display, showing 0.3 after adding 0.1 and 0.2, with the add key highlighted for the next step" width="320">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-dark.png">
+    <img src="docs/screenshot-light.png" alt="The calculator's keypad and display, showing 0.3 after adding 0.1 and 0.2, with the add key highlighted for the next step" width="320">
   </picture>
 </p>
 
@@ -90,6 +90,9 @@ Use the on-screen keys or the keyboard:
 | Equals | `Enter` or `=` |
 | Delete last digit | `Backspace` |
 | Clear | `Esc` or `Delete` |
+| Copy the display | `Ctrl+C` or `⌘C`, or the Copy button |
+| Paste a number | `Ctrl+V` or `⌘V`, or the Paste button |
+| Switch between light and dark | The sun or moon button |
 
 - **Chaining** works left to right like a pocket calculator, with no operator precedence: `2 + 3 × 4 =` gives `20`.
 - **Percent** works as it does on a phone calculator:
@@ -98,6 +101,9 @@ Use the on-screen keys or the keyboard:
   - With nothing pending, `50 %` gives `0.5`.
 - **Long results** are rounded to 16 significant digits on the display. Hover over the number to see the exact value, which is also what the next step of a calculation uses.
 - **After an error**, your calculation is kept. In `5 ÷ 0 =`, typing `2` and pressing `=` gives `2.5`.
+- **Copying** gives what the display shows, so a result shown as `1` doesn't arrive elsewhere as `0.9999…`.
+- **Pasting** replaces the current number and understands common formats: `$1,234.50`, `1.234,5`, `1 234` and `1e+16`. A comma followed by exactly three digits counts as thousands, so `1,234` is 1234. It can hold more digits than you can type. Anything else, such as `2 + 2`, shows a message and leaves your calculation alone.
+- **The theme** follows your system until you pick one, and your pick is remembered in this browser.
 
 ## API
 
@@ -214,7 +220,7 @@ npm test -- --coverage
 | Backend `internal/calculator` | 95.6% | Every operation and edge case |
 | Backend `internal/api` | 99.0% | Routing, validation, every error status |
 | Backend `cmd/server` | 22.9% | Startup wiring, exercised by CI's Docker smoke test |
-| Frontend | 100% (97.81% of branches) | Reducer, formatter, API client, whole-calculator flows |
+| Frontend | 100% (98.21% of branches) | Reducer, formatter, paste parser, API client, whole-calculator flows |
 
 [docs/coverage.md](docs/coverage.md) has the full report, including what isn't covered and why. CI runs all of this on every push, builds the Docker image, smoke tests it, and keeps the HTML coverage reports as build artifacts. Each push to `main` also updates the coverage badges at the top of this page. They show total statement coverage, read from figures CI publishes to the `badges` branch, so no outside coverage service is involved.
 
@@ -238,7 +244,11 @@ npm test -- --coverage
 
 **No CORS.** In development Vite proxies `/api`, and in production the Go server serves the frontend, so the browser only ever sees one origin. Not adding CORS means there's no policy to get wrong. Hosting the frontend on another origin would need one.
 
-**Display formatting works on text.** Results can hold more digits than a JavaScript number, so rounding for display is done on the digit string using `BigInt`.
+**Display formatting works on text.** Results can hold more digits than a JavaScript number, so rounding for display is done on the digit string using `BigInt`. Pasted numbers are read the same way, and exponents are expanded by moving the decimal point.
+
+**Clipboard shortcuts use the browser's `copy` and `paste` events.** These need no permission and work on plain HTTP. The on-screen buttons exist for phones, which have no shortcuts, and use the Clipboard API, so they need HTTPS or `localhost` and may prompt for permission. If the browser refuses, the calculator says so and suggests the shortcut.
+
+**The theme is applied before the first paint.** A small inline script in `index.html` sets the saved theme before the page draws, so a dark-mode user doesn't get a flash of light.
 
 ## Assumptions and limits
 
@@ -258,8 +268,9 @@ backend/
   internal/api/          routes, request validation, error mapping, middleware
 frontend/src/
   api/client.ts          typed API calls, timeouts, error normalisation
-  calculator/            reducer, display formatting, useCalculator hook
-  components/            Calculator, Display, Keypad
+  calculator/            reducer, display formatting, paste parsing, useCalculator hook
+  components/            Calculator, Display, Keypad, Toolbar
+  theme/useTheme.ts      light and dark theme, following the system until one is picked
 docs/                    coverage report and screenshots
 PROMPTS.md               the AI prompts used to build this
 Dockerfile               builds and runs both layers in one image
