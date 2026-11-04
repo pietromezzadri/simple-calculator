@@ -1,8 +1,19 @@
 # Simple Calculator
 
+[![CI](https://github.com/pietromezzadri/simple-calculator/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/pietromezzadri/simple-calculator/actions/workflows/ci.yml)
+[![Backend coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fpietromezzadri%2Fsimple-calculator%2Fbadges%2Fbackend-coverage.json)](docs/coverage.md)
+[![Frontend coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fpietromezzadri%2Fsimple-calculator%2Fbadges%2Ffrontend-coverage.json)](docs/coverage.md)
+
 A full-stack calculator: a React and TypeScript keypad backed by a Go REST API. It adds, subtracts, multiplies, divides, raises to a power, takes square roots and works out percentages.
 
 All arithmetic happens on the backend, in decimal rather than floating point, so `0.1 + 0.2` is exactly `0.3`.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-dark.jpg">
+    <img src="docs/screenshot-light.jpg" alt="The calculator's keypad and display, showing 0.3 after adding 0.1 and 0.2, with the add key highlighted for the next step" width="320">
+  </picture>
+</p>
 
 ## Contents
 
@@ -205,7 +216,7 @@ npm test -- --coverage
 | Backend `cmd/server` | 22.9% | Startup wiring, exercised by CI's Docker smoke test |
 | Frontend | 100% (97.81% of branches) | Reducer, formatter, API client, whole-calculator flows |
 
-[docs/coverage.md](docs/coverage.md) has the full report, including what isn't covered and why. CI runs all of this on every push, builds the Docker image, smoke tests it, and keeps the HTML coverage reports as build artifacts.
+[docs/coverage.md](docs/coverage.md) has the full report, including what isn't covered and why. CI runs all of this on every push, builds the Docker image, smoke tests it, and keeps the HTML coverage reports as build artifacts. Each push to `main` also updates the coverage badges at the top of this page. They show total statement coverage, read from figures CI publishes to the `badges` branch, so no outside coverage service is involved.
 
 ## Design decisions
 
@@ -249,7 +260,7 @@ frontend/src/
   api/client.ts          typed API calls, timeouts, error normalisation
   calculator/            reducer, display formatting, useCalculator hook
   components/            Calculator, Display, Keypad
-docs/coverage.md         coverage report
+docs/                    coverage report and screenshots
 PROMPTS.md               the AI prompts used to build this
 Dockerfile               builds and runs both layers in one image
 .github/workflows/ci.yml tests, coverage and an image smoke test

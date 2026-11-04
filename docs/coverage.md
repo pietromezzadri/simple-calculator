@@ -1,6 +1,6 @@
 # Coverage report
 
-CI regenerates these numbers on every push and keeps the HTML reports as build artifacts, named `backend-coverage` and `frontend-coverage`.
+CI regenerates these numbers on every push and keeps the HTML reports as build artifacts, named `backend-coverage` and `frontend-coverage`. The tables below were recorded by hand, so if they ever differ from the README's badges, the badges are current.
 
 ## Backend
 

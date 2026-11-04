@@ -88,3 +88,7 @@ Claude asked whether to publish, and which email the commits should use.
 GitHub rejected the first push because my login lacked permission to upload workflow files. I granted it with `gh auth refresh` and replied:
 
 > Done, push again
+
+## 6. README additions
+
+> add a screenshot of the app to the readme and add a status badge based on the CI runs and coverage if possible
