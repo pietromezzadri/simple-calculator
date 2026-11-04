@@ -80,7 +80,7 @@ describe('editing', () => {
 describe('binary operations', () => {
   it('an operator waits for the second number and sends nothing', () => {
     const state = pressAll(['2', 'add']);
-    expect(state).toMatchObject({ pending: 'add', accumulator: '2', request: null });
+    expect(state).toMatchObject({ stack: [{ value: '2', op: 'add' }], request: null });
   });
 
   it('equals sends the calculation', () => {
@@ -90,7 +90,7 @@ describe('binary operations', () => {
 
   it('shows the result and finishes the calculation', () => {
     const state = resolve(pressAll(['2', 'add', '3', 'equals']), '5');
-    expect(state).toMatchObject({ entry: '5', pending: null, accumulator: null, request: null });
+    expect(state).toMatchObject({ entry: '5', stack: [], request: null });
   });
 
   it('a digit after a result starts a new number', () => {
@@ -108,18 +108,10 @@ describe('binary operations', () => {
     });
   });
 
-  it('a second operator evaluates the first, left to right', () => {
-    const chained = pressAll(['2', 'add', '3', 'multiply']);
-    expect(chained.request?.call).toEqual({ op: 'add', a: '2', b: '3' });
-
-    const after = resolve(chained, '5');
-    expect(after).toMatchObject({ entry: '5', accumulator: '5', pending: 'multiply' });
-    expect(pressAll(['4', 'equals'], after).request?.call).toEqual({ op: 'multiply', a: '5', b: '4' });
-  });
 
   it('pressing another operator straight away just changes it', () => {
     const state = pressAll(['2', 'add', 'multiply']);
-    expect(state).toMatchObject({ pending: 'multiply', accumulator: '2', request: null });
+    expect(state).toMatchObject({ stack: [{ value: '2', op: 'multiply' }], request: null });
   });
 
   it('equals with no second number uses the first twice', () => {
@@ -152,6 +144,117 @@ describe('binary operations', () => {
       a: '5',
       b: '-5',
     });
+  });
+});
+
+describe('order of operations', () => {
+  it('holds an addition back for a division after it', () => {
+    const held = pressAll(['2', '5', 'add', '6', '4', 'divide']);
+    expect(held.request).toBeNull();
+    expect(held.stack).toEqual([
+      { value: '25', op: 'add' },
+      { value: '64', op: 'divide' },
+    ]);
+
+    const dividing = pressAll(['2', 'equals'], held);
+    expect(dividing.request?.call).toEqual({ op: 'divide', a: '64', b: '2' });
+
+    const adding = resolve(dividing, '32');
+    expect(adding.request?.call).toEqual({ op: 'add', a: '25', b: '32' });
+
+    expect(resolve(adding, '57')).toMatchObject({ entry: '57', stack: [], request: null });
+  });
+
+  it.each([
+    ['add', 'subtract'],
+    ['subtract', 'add'],
+    ['multiply', 'divide'],
+    ['divide', 'multiply'],
+  ] as const)('%s then %s goes left to right', (first, second) => {
+    const chained = pressAll(['8', first, '2', second]);
+    expect(chained.request?.call).toEqual({ op: first, a: '8', b: '2' });
+    expect(resolve(chained, '4').stack).toEqual([{ value: '4', op: second }]);
+  });
+
+  it.each(['multiply', 'divide'] as const)('%s goes before an addition after it', (first) => {
+    const chained = pressAll(['8', first, '2', 'add']);
+    expect(chained.request?.call).toEqual({ op: first, a: '8', b: '2' });
+    expect(resolve(chained, '4').stack).toEqual([{ value: '4', op: 'add' }]);
+  });
+
+  it('works through everything a low-precedence operator can no longer wait for', () => {
+    const multiplying = pressAll(['1', 'add', '2', 'multiply', '3', 'subtract']);
+    expect(multiplying.request?.call).toEqual({ op: 'multiply', a: '2', b: '3' });
+
+    const adding = resolve(multiplying, '6');
+    expect(adding.request?.call).toEqual({ op: 'add', a: '1', b: '6' });
+
+    expect(resolve(adding, '7')).toMatchObject({
+      entry: '7',
+      stack: [{ value: '7', op: 'subtract' }],
+      request: null,
+      operandEntered: false,
+    });
+  });
+
+  it('power goes before multiplication, on either side', () => {
+    const after = pressAll(['2', 'multiply', '3', 'power', '2', 'equals']);
+    expect(after.request?.call).toEqual({ op: 'power', a: '3', b: '2' });
+    expect(resolve(after, '9').request?.call).toEqual({ op: 'multiply', a: '2', b: '9' });
+
+    const before = pressAll(['2', 'power', '3', 'multiply']);
+    expect(before.request?.call).toEqual({ op: 'power', a: '2', b: '3' });
+  });
+
+  it('powers group right to left', () => {
+    const state = pressAll(['2', 'power', '3', 'power', '2', 'equals']);
+    expect(state.request?.call).toEqual({ op: 'power', a: '3', b: '2' });
+    expect(resolve(state, '9').request?.call).toEqual({ op: 'power', a: '2', b: '9' });
+  });
+
+  it('changing a held operator re-checks what can wait', () => {
+    const state = pressAll(['2', 'add', '3', 'multiply', 'add']);
+    expect(state.request?.call).toEqual({ op: 'add', a: '2', b: '3' });
+    expect(resolve(state, '5').stack).toEqual([{ value: '5', op: 'add' }]);
+  });
+
+  it('equals with no last number uses the one on show', () => {
+    const state = pressAll(['2', 'add', '3', 'multiply', 'equals']);
+    expect(state.request?.call).toEqual({ op: 'multiply', a: '3', b: '3' });
+  });
+
+  it('stays busy between the steps of one calculation', () => {
+    const between = resolve(pressAll(['2', 'add', '3', 'multiply', '4', 'equals']), '12');
+    expect(between.request).not.toBeNull();
+    expect(pressAll(['9'], between)).toBe(between);
+  });
+
+  it('clear stops a calculation between its steps', () => {
+    const between = resolve(pressAll(['2', 'add', '3', 'multiply', '4', 'equals']), '12');
+    const cleared = pressAll(['clear'], between);
+    expect(cleared).toEqual(initialState);
+    expect(resolve(cleared, '14')).toBe(cleared);
+  });
+
+  it('an error keeps what is held, so the number can be corrected', () => {
+    const failed = reject(pressAll(['2', '5', 'add', '6', '4', 'divide', '0', 'equals']), 'nope');
+    expect(failed.stack).toHaveLength(2);
+
+    const retried = pressAll(['2', 'equals'], failed);
+    expect(retried.request?.call).toEqual({ op: 'divide', a: '64', b: '2' });
+    expect(resolve(retried, '32').request?.call).toEqual({ op: 'add', a: '25', b: '32' });
+  });
+
+  it('an error in a later step keeps the steps already done', () => {
+    const adding = resolve(pressAll(['1', 'add', '2', 'multiply', '3', 'equals']), '6');
+    const failed = reject(adding, 'nope');
+    expect(failed).toMatchObject({ entry: '6', stack: [{ value: '1', op: 'add' }], error: 'nope' });
+    expect(pressAll(['equals'], failed).request?.call).toEqual({ op: 'add', a: '1', b: '6' });
+  });
+
+  it('a percentage after a multiplication is a fraction, even with an addition held', () => {
+    const state = pressAll(['1', '0', '0', 'add', '5', '0', 'multiply', '1', '0', 'percent']);
+    expect(state.request?.call).toEqual({ op: 'percentage', a: '10', b: '1' });
   });
 });
 
@@ -212,7 +315,7 @@ describe('pasting', () => {
   it('shows an error for anything else, and keeps the calculation', () => {
     const state = paste(pressAll(['2', 'add', '3']), 'hello');
     expect(state.error).toBe("That isn't a number the calculator can use.");
-    expect(state).toMatchObject({ entry: '3', accumulator: '2', pending: 'add' });
+    expect(state).toMatchObject({ entry: '3', stack: [{ value: '2', op: 'add' }] });
     expect(pressAll(['equals'], state).request?.call).toEqual({ op: 'add', a: '2', b: '3' });
   });
 

@@ -20,16 +20,21 @@ type Continuation =
   | { kind: 'operator'; next: BinaryOperator }
   | { kind: 'replaceEntry' };
 
+/** A left-hand operand and its operator, waiting for what comes after them. */
+export interface PendingOperation {
+  value: string;
+  op: BinaryOperator;
+}
+
 export interface CalculatorState {
   /** The number being typed, or the exact value of the last result. */
   entry: string;
   /** The entry is a finished value, so the next digit starts a new number. */
   overwrite: boolean;
-  /** The entry is the right-hand operand of the pending operator. */
+  /** The entry is the right-hand operand of the last pending operation. */
   operandEntered: boolean;
-  /** The left-hand operand of the pending operator. */
-  accumulator: string | null;
-  pending: BinaryOperator | null;
+  /** Operations held back by precedence, with the one to do next at the end. */
+  stack: PendingOperation[];
   /** The call in flight. Setting this is what makes the hook send it. */
   request: { call: ApiCall; then: Continuation } | null;
   error: string | null;
@@ -44,12 +49,19 @@ export type Action =
 
 export const MAX_ENTRY_DIGITS = 16;
 
+const PRECEDENCE: Record<BinaryOperator, number> = {
+  add: 1,
+  subtract: 1,
+  multiply: 2,
+  divide: 2,
+  power: 3,
+};
+
 export const initialState: CalculatorState = {
   entry: '0',
   overwrite: false,
   operandEntered: false,
-  accumulator: null,
-  pending: null,
+  stack: [],
   request: null,
   error: null,
 };
@@ -142,24 +154,42 @@ function negate(state: CalculatorState): CalculatorState {
   return { ...state, entry, operandEntered: true };
 }
 
+/**
+ * Does whatever the new operator can't wait for, one request at a time, then
+ * holds the operator back until the number after it is known. In 25 + 64 ÷ 2,
+ * pressing ÷ leaves 25 + waiting, because division binds tighter.
+ */
 function chooseOperator(state: CalculatorState, operator: BinaryOperator): CalculatorState {
-  if (state.pending && state.accumulator !== null && state.operandEntered) {
-    const call = { op: state.pending, a: state.accumulator, b: operand(state) };
-    return send(state, call, { kind: 'operator', next: operator });
+  const current = state.operandEntered ? state : takeBackOperator(state);
+  const top = current.stack.at(-1);
+  if (top && bindsFirst(top.op, operator)) {
+    return send(current, callFor(top, current), { kind: 'operator', next: operator });
   }
   return {
-    ...state,
-    accumulator: operand(state),
-    pending: operator,
+    ...current,
+    stack: [...current.stack, { value: operand(current), op: operator }],
     operandEntered: false,
     overwrite: true,
   };
 }
 
+/** Pressing another operator straight after one replaces it. */
+function takeBackOperator(state: CalculatorState): CalculatorState {
+  const top = state.stack.at(-1);
+  if (!top) return state;
+  return { ...state, entry: top.value, stack: state.stack.slice(0, -1), operandEntered: true };
+}
+
+/** Whether a waiting operator goes before a new one. Powers group right to left. */
+function bindsFirst(waiting: BinaryOperator, next: BinaryOperator): boolean {
+  if (next === 'power' && waiting === 'power') return false;
+  return PRECEDENCE[waiting] >= PRECEDENCE[next];
+}
+
 function equals(state: CalculatorState): CalculatorState {
-  if (!state.pending || state.accumulator === null) return { ...state, overwrite: true };
-  const call = { op: state.pending, a: state.accumulator, b: operand(state) };
-  return send(state, call, { kind: 'equals' });
+  const top = state.stack.at(-1);
+  if (!top) return { ...state, overwrite: true };
+  return send(state, callFor(top, state), { kind: 'equals' });
 }
 
 /**
@@ -168,8 +198,9 @@ function equals(state: CalculatorState): CalculatorState {
  * otherwise it is a plain fraction (200 × 10% is 200 × 0.1).
  */
 function percent(state: CalculatorState): CalculatorState {
-  const ofTotal = state.pending === 'add' || state.pending === 'subtract';
-  const b = ofTotal && state.accumulator !== null ? state.accumulator : '1';
+  const top = state.stack.at(-1);
+  const ofTotal = top?.op === 'add' || top?.op === 'subtract';
+  const b = ofTotal ? top.value : '1';
   return send(state, { op: 'percentage', a: operand(state), b }, { kind: 'replaceEntry' });
 }
 
@@ -177,16 +208,19 @@ function send(state: CalculatorState, call: ApiCall, then: Continuation): Calcul
   return { ...state, request: { call, then } };
 }
 
+function callFor(pending: PendingOperation, state: CalculatorState): ApiCall {
+  return { op: pending.op, a: pending.value, b: operand(state) };
+}
+
 function applyResult(state: CalculatorState, then: Continuation, result: string): CalculatorState {
-  const settled = { ...state, entry: result, overwrite: true, request: null };
-  switch (then.kind) {
-    case 'equals':
-      return { ...settled, accumulator: null, pending: null, operandEntered: false };
-    case 'operator':
-      return { ...settled, accumulator: result, pending: then.next, operandEntered: false };
-    case 'replaceEntry':
-      return { ...settled, operandEntered: true };
-  }
+  const settled = { ...state, entry: result, overwrite: true, operandEntered: true, request: null };
+  if (then.kind === 'replaceEntry') return settled;
+
+  // The result is now the right-hand operand of whatever was waiting under it.
+  const reduced = { ...settled, stack: settled.stack.slice(0, -1) };
+  if (then.kind === 'operator') return chooseOperator(reduced, then.next);
+
+  return reduced.stack.length > 0 ? equals(reduced) : { ...reduced, operandEntered: false };
 }
 
 /** The entry as a number for the API: a half-typed "5." is sent as "5". */

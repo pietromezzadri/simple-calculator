@@ -106,12 +106,33 @@ describe('Calculator', () => {
     expect(screen.getByRole('button', { name: 'Add' })).toHaveAttribute('aria-pressed', 'false');
   });
 
-  it('chains left to right, without operator precedence', async () => {
+  it('follows the order of operations, showing what is held', async () => {
+    const fetchMock = serve(fakeBackend);
+    const user = setup();
+    await click(user, '2', '5', 'Add', '6', '4', 'Divide');
+    expect(screen.getByTestId('expression')).toHaveTextContent('25 + 64 ÷');
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await click(user, '2', 'Equals');
+
+    await waitFor(() => expect(value()).toHaveTextContent(/^57$/));
+    expect(screen.getByTestId('expression')).toBeEmptyDOMElement();
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['/api/v1/divide', '/api/v1/add']);
+  });
+
+  it('works through held operations when a lower one arrives', async () => {
+    const user = setup();
+    await click(user, '1', 'Add', '2', 'Multiply', '3', 'Subtract');
+    await waitFor(() => expect(screen.getByTestId('expression')).toHaveTextContent(/^7 −$/));
+    await click(user, '4', 'Equals');
+    await waitFor(() => expect(value()).toHaveTextContent(/^3$/));
+  });
+
+  it('marks the operator that was pressed last', async () => {
     const user = setup();
     await click(user, '2', 'Add', '3', 'Multiply');
-    await waitFor(() => expect(screen.getByTestId('expression')).toHaveTextContent('5 ×'));
-    await click(user, '4', 'Equals');
-    await waitFor(() => expect(value()).toHaveTextContent(/^20$/));
+    expect(screen.getByRole('button', { name: 'Multiply' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Add' })).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('takes the square root of the entry', async () => {
