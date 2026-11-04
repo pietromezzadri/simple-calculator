@@ -92,3 +92,7 @@ GitHub rejected the first push because my login lacked permission to upload work
 ## 6. README additions
 
 > add a screenshot of the app to the readme and add a status badge based on the CI runs and coverage if possible
+
+## 7. Theme toggle, copy and paste
+
+> while we wait for that, let us allow the user to toggle between dark and light theme, also to copy and paste values into the calculator

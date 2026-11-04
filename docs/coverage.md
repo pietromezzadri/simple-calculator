@@ -40,17 +40,18 @@ The HTML report is written to `frontend/coverage/index.html`.
 
 | Measure | Coverage | Count |
 |---|---|---|
-| Statements | 100% | 152 / 152 |
-| Branches | 97.81% | 134 / 137 |
-| Functions | 100% | 37 / 37 |
-| Lines | 100% | 130 / 130 |
+| Statements | 100% | 267 / 267 |
+| Branches | 98.21% | 220 / 224 |
+| Functions | 100% | 66 / 66 |
+| Lines | 100% | 223 / 223 |
 
-The three branches not covered:
+The four branches not covered:
 
 | Code | Why |
 |---|---|
 | `useCalculator.ts` line 20 | The check that drops a successful answer arriving just after cancellation. `fetch` rejects once aborted, so this needs an answer to land in a narrow window. |
-| `useCalculator.ts` line 35 | The general message for an error that isn't an `ApiError`. The API client turns every failure except cancellation into one. |
+| `useCalculator.ts` line 37 | The general message for an error that isn't an `ApiError`. The API client turns every failure except cancellation into one. |
+| `Calculator.tsx` line 51 | The fallback for a paste event with no clipboard data, which real browsers always include. |
 | `Display.tsx` line 12 | The size class for the longest values, which only changes the font size. |
 
 The build fails if frontend coverage falls below 90% on any measure, a threshold set in `vite.config.ts`.
