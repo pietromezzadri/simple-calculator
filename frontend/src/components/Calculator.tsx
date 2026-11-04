@@ -71,10 +71,9 @@ export function Calculator() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [press]);
 
-  const expression =
-    state.pending && state.accumulator !== null
-      ? `${formatNumber(state.accumulator)} ${OPERATOR_SYMBOLS[state.pending]}`
-      : '';
+  const expression = state.stack
+    .map(({ value, op }) => `${formatNumber(value)} ${OPERATOR_SYMBOLS[op]}`)
+    .join(' ');
   const busy = state.request !== null;
 
   return (
@@ -89,7 +88,7 @@ export function Calculator() {
       <Keypad
         onPress={press}
         busy={busy}
-        activeOperator={state.operandEntered ? null : state.pending}
+        activeOperator={state.operandEntered ? null : (state.stack.at(-1)?.op ?? null)}
       />
     </section>
   );

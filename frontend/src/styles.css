@@ -158,8 +158,11 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Right-aligned with flex, so a long chain is cut off at its oldest end. */
 .display-expression {
+  display: flex;
   min-height: 1.4em;
+  justify-content: flex-end;
   overflow: hidden;
   color: var(--screen-muted);
   font-size: 0.95rem;
@@ -250,13 +253,13 @@ body {
   background: var(--key-operator-hover);
 }
 
-.key-operator[aria-pressed='true'],
+.key[aria-pressed='true'],
 .key-equals {
   background: var(--accent);
   color: var(--accent-text);
 }
 
-.key-operator[aria-pressed='true']:hover,
+.key[aria-pressed='true']:hover,
 .key-equals:hover {
   background: var(--accent-hover);
 }
