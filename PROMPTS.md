@@ -84,3 +84,7 @@ Docker Desktop wasn't running when Claude reached the image test, so it asked me
 Claude asked whether to publish, and which email the commits should use.
 
 > Publish with Gmail
+
+GitHub rejected the first push because my login lacked permission to upload workflow files. I granted it with `gh auth refresh` and replied:
+
+> Done, push again
