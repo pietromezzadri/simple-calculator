@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Calculator } from './Calculator';
@@ -59,6 +59,13 @@ async function click(user: ReturnType<typeof userEvent.setup>, ...names: string[
 
 const value = () => screen.getByRole('status');
 
+/** Fires the copy event a browser sends for Ctrl+C, and returns what it was given to copy. */
+function pressCopyShortcut() {
+  const setData = vi.fn();
+  fireEvent.copy(document.body, { clipboardData: { setData } });
+  return setData;
+}
+
 describe('Calculator', () => {
   beforeEach(() => {
     serve(fakeBackend);
@@ -67,7 +74,7 @@ describe('Calculator', () => {
   it('starts at zero with every key available', () => {
     setup();
     expect(value()).toHaveTextContent('0');
-    expect(screen.getAllByRole('button')).toHaveLength(22);
+    expect(screen.getAllByRole('button')).toHaveLength(25);
   });
 
   it('adds two numbers through the API', async () => {
@@ -231,7 +238,201 @@ describe('Calculator', () => {
     });
   });
 
+  describe('copy and paste', () => {
+    it('pastes a number with the keyboard and calculates with it', async () => {
+      const user = setup();
+      await click(user, '2', 'Add');
+      await user.paste('$1,000.50');
+      expect(value()).toHaveTextContent(/^1000\.5$/);
+
+      await click(user, 'Equals');
+      await waitFor(() => expect(value()).toHaveTextContent(/^1002\.5$/));
+    });
+
+    it('explains when what was pasted is not a number', async () => {
+      const user = setup();
+      await user.paste('hello');
+      expect(await screen.findByRole('alert')).toHaveTextContent("isn't a number");
+    });
+
+    it('copies what is on the display with the keyboard', async () => {
+      const third = '0.3333333333333333333333333333333333';
+      serve(() => ({ body: { result: third } }));
+      const user = setup();
+      await click(user, '1', 'Divide', '3', 'Equals');
+      await waitFor(() => expect(value()).toHaveTextContent(/^0\.3333333333333333$/));
+
+      expect(pressCopyShortcut()).toHaveBeenCalledWith('text/plain', '0.3333333333333333');
+    });
+
+    it('copies a half-typed number without its trailing point', async () => {
+      const user = setup();
+      await click(user, '5', 'Decimal point');
+      expect(pressCopyShortcut()).toHaveBeenCalledWith('text/plain', '5');
+    });
+
+    it('leaves selected text to copy as usual', async () => {
+      const user = setup();
+      await click(user, '5');
+      vi.spyOn(window, 'getSelection').mockReturnValue({ toString: () => 'something' } as Selection);
+
+      expect(pressCopyShortcut()).not.toHaveBeenCalled();
+    });
+
+    it('has nothing to copy while an error is showing', async () => {
+      const user = setup();
+      await user.paste('hello');
+      await screen.findByRole('alert');
+
+      expect(pressCopyShortcut()).not.toHaveBeenCalled();
+      expect(screen.getByRole('button', { name: 'Copy' })).toHaveAttribute('aria-disabled', 'true');
+
+      const write = vi.spyOn(navigator.clipboard, 'writeText');
+      await click(user, 'Copy');
+      expect(write).not.toHaveBeenCalled();
+    });
+
+    it('copies with the button, and says so for a moment', async () => {
+      const user = setup();
+      await click(user, '4', '2', 'Copy');
+
+      expect(await navigator.clipboard.readText()).toBe('42');
+      expect(screen.getByRole('button', { name: 'Copied' })).toBeInTheDocument();
+      await screen.findByRole('button', { name: 'Copy' }, { timeout: 2500 });
+    });
+
+    it('pastes with the button', async () => {
+      const user = setup();
+      await navigator.clipboard.writeText('123.5');
+      await click(user, 'Paste');
+      await waitFor(() => expect(value()).toHaveTextContent(/^123\.5$/));
+    });
+
+    it('explains when the browser blocks the buttons', async () => {
+      const user = setup();
+      vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('denied'));
+      vi.spyOn(navigator.clipboard, 'readText').mockRejectedValue(new Error('denied'));
+
+      await click(user, 'Copy');
+      expect(await screen.findByRole('alert')).toHaveTextContent('blocked copying');
+
+      await click(user, 'Paste');
+      expect(await screen.findByRole('alert')).toHaveTextContent('blocked pasting');
+    });
+
+    it('ignores the paste button while a request is running', async () => {
+      vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+      const user = setup();
+      await click(user, '1', 'Add', '2', 'Equals');
+      const read = vi.spyOn(navigator.clipboard, 'readText');
+
+      expect(screen.getByRole('button', { name: 'Paste' })).toHaveAttribute('aria-disabled', 'true');
+      await click(user, 'Paste');
+      await user.paste('9');
+
+      expect(read).not.toHaveBeenCalled();
+      expect(value()).toHaveTextContent(/^2$/);
+    });
+  });
+
+  describe('theme', () => {
+    const theme = () => document.documentElement.dataset.theme;
+
+    it('follows the system until one is picked', () => {
+      setup();
+      expect(theme()).toBeUndefined();
+      expect(screen.getByRole('button', { name: 'Switch to dark theme' })).toBeInTheDocument();
+    });
+
+    it('starts from a dark system', () => {
+      vi.stubGlobal('matchMedia', () => ({
+        matches: true,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }));
+      setup();
+      expect(screen.getByRole('button', { name: 'Switch to light theme' })).toBeInTheDocument();
+    });
+
+    it('updates when the system changes, if none was picked', () => {
+      let listener = () => {};
+      const query = {
+        matches: false,
+        addEventListener: (_type: string, callback: () => void) => {
+          listener = callback;
+        },
+        removeEventListener: () => {},
+      };
+      vi.stubGlobal('matchMedia', () => query);
+      setup();
+
+      query.matches = true;
+      act(() => listener());
+
+      expect(screen.getByRole('button', { name: 'Switch to light theme' })).toBeInTheDocument();
+    });
+
+    it('toggles both ways and remembers the choice', async () => {
+      const user = setup();
+
+      await click(user, 'Switch to dark theme');
+      expect(theme()).toBe('dark');
+      expect(localStorage.getItem('calculator-theme')).toBe('dark');
+
+      await click(user, 'Switch to light theme');
+      expect(theme()).toBe('light');
+      expect(localStorage.getItem('calculator-theme')).toBe('light');
+    });
+
+    it('starts from a choice already applied by the page', () => {
+      document.documentElement.dataset.theme = 'dark';
+      setup();
+      expect(screen.getByRole('button', { name: 'Switch to light theme' })).toBeInTheDocument();
+    });
+
+    it('still works when storage is blocked', async () => {
+      const user = setup();
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new Error('blocked');
+      });
+
+      await click(user, 'Switch to dark theme');
+
+      expect(theme()).toBe('dark');
+    });
+  });
+
   describe('keyboard', () => {
+    it('Enter on a focused toolbar button presses it, not equals', async () => {
+      const fetchMock = serve(fakeBackend);
+      const user = setup();
+      await click(user, '2', 'Add', '3');
+
+      screen.getByRole('button', { name: 'Switch to dark theme' }).focus();
+      await user.keyboard('{Enter}');
+
+      expect(document.documentElement.dataset.theme).toBe('dark');
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('other keys still reach the calculator from a focused toolbar button', async () => {
+      const user = setup();
+      screen.getByRole('button', { name: 'Paste' }).focus();
+      await user.keyboard('7');
+      expect(value()).toHaveTextContent(/^7$/);
+    });
+
+    it('Enter after a mouse click on a toolbar button means equals', async () => {
+      const user = setup();
+      await click(user, '2', 'Add', '3', 'Switch to dark theme');
+      expect(document.documentElement.dataset.theme).toBe('dark');
+
+      await user.keyboard('{Enter}');
+
+      await waitFor(() => expect(value()).toHaveTextContent(/^5$/));
+      expect(document.documentElement.dataset.theme).toBe('dark');
+    });
+
     it('does a whole calculation from the keyboard', async () => {
       const user = setup();
       await user.keyboard('12.5*2{Enter}');

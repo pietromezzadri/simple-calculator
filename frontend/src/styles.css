@@ -38,7 +38,33 @@
     --accent-text: #16150f;
     --focus: #79b0ff;
     --shadow: 0 12px 32px rgb(0 0 0 / 45%);
+    color-scheme: dark;
   }
+}
+
+/* The same dark values again, for someone who picked dark on a light system. */
+:root[data-theme='dark'] {
+  --page: #16150f;
+  --body: #24231d;
+  --body-edge: #38362e;
+  --screen: #0f0e0a;
+  --key-number: #33322a;
+  --key-number-hover: #3e3c33;
+  --key-function: #47453b;
+  --key-function-hover: #535146;
+  --key-operator: #5a3d2a;
+  --key-operator-hover: #694733;
+  --key-text: #f6f3ec;
+  --accent: #e0702d;
+  --accent-hover: #ea8143;
+  --accent-text: #16150f;
+  --focus: #79b0ff;
+  --shadow: 0 12px 32px rgb(0 0 0 / 45%);
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
 }
 
 * {
@@ -68,6 +94,53 @@ body {
   border-radius: 20px;
   background: var(--body);
   box-shadow: var(--shadow);
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.tool {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--body-edge);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--key-text);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.tool:hover {
+  background: var(--key-function);
+}
+
+.tool:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.tool[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Wide enough for "Copied", so the buttons beside it don't move. */
+.tool:first-child {
+  min-width: 76px;
+}
+
+.tool-theme {
+  display: flex;
+  width: 40px;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  padding: 0;
 }
 
 .display {

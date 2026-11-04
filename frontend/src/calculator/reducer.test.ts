@@ -186,6 +186,46 @@ describe('one-number operations', () => {
   });
 });
 
+describe('pasting', () => {
+  function paste(state: CalculatorState, text: string): CalculatorState {
+    return reducer(state, { type: 'paste', text });
+  }
+
+  it('replaces the entry with the number', () => {
+    expect(paste(pressAll(['1', '2']), '$1,234.50').entry).toBe('1234.5');
+  });
+
+  it('keeps more digits than can be typed', () => {
+    const long = '1234567890.123456789';
+    expect(paste(initialState, long).entry).toBe(long);
+  });
+
+  it('becomes the second operand of a pending operation', () => {
+    const state = paste(pressAll(['2', 'add']), '3');
+    expect(pressAll(['equals'], state).request?.call).toEqual({ op: 'add', a: '2', b: '3' });
+  });
+
+  it('a digit afterwards starts a new number', () => {
+    expect(pressAll(['7'], paste(initialState, '42')).entry).toBe('7');
+  });
+
+  it('shows an error for anything else, and keeps the calculation', () => {
+    const state = paste(pressAll(['2', 'add', '3']), 'hello');
+    expect(state.error).toBe("That isn't a number the calculator can use.");
+    expect(state).toMatchObject({ entry: '3', accumulator: '2', pending: 'add' });
+    expect(pressAll(['equals'], state).request?.call).toEqual({ op: 'add', a: '2', b: '3' });
+  });
+
+  it('clears an earlier error', () => {
+    expect(paste(paste(initialState, 'hello'), '5').error).toBeNull();
+  });
+
+  it('is ignored while a request is in flight', () => {
+    const inFlight = pressAll(['2', 'add', '3', 'equals']);
+    expect(paste(inFlight, '5')).toBe(inFlight);
+  });
+});
+
 describe('while a request is in flight', () => {
   const inFlight = pressAll(['2', 'add', '3', 'equals']);
 
