@@ -27,8 +27,10 @@ export function useCalculator() {
   }, [request]);
 
   const press = useCallback((key: Key) => dispatch({ type: 'press', key }), []);
+  const paste = useCallback((text: string) => dispatch({ type: 'paste', text }), []);
+  const showError = useCallback((message: string) => dispatch({ type: 'showError', message }), []);
 
-  return { state, press };
+  return { state, press, paste, showError };
 }
 
 function messageFor(error: unknown): string {
