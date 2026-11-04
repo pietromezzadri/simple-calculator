@@ -1,0 +1,19 @@
+# Go
+backend/server
+backend/*.exe
+*.out
+
+# Node
+node_modules/
+frontend/dist/
+frontend/coverage/
+*.tsbuildinfo
+
+# Local files
+.env
+.env.local
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.claude/
