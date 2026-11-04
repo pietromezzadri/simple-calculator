@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     // The browser only ever talks to one origin, so the API needs no CORS setup.
-    proxy: { '/api': 'http://localhost:8080' },
+    proxy: { '/api': process.env.API_TARGET ?? 'http://localhost:8080' },
   },
   test: {
     environment: 'jsdom',

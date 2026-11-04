@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -38,7 +39,7 @@ func run(logger *slog.Logger) error {
 	}
 
 	server := &http.Server{
-		Addr:              ":" + port,
+		Addr:              net.JoinHostPort(os.Getenv("HOST"), port),
 		Handler:           api.NewRouter(logger, static),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,

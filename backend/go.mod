@@ -1,5 +1,5 @@
 module github.com/pietromezzadri/simple-calculator/backend
 
-go 1.26.5
+go 1.26.0
 
 require github.com/shopspring/decimal v1.6.0
