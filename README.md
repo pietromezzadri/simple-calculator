@@ -94,7 +94,7 @@ Use the on-screen keys or the keyboard:
 | Paste a number | `Ctrl+V` or `⌘V`, or the Paste button |
 | Switch between light and dark | The sun or moon button |
 
-- **Chaining** works left to right like a pocket calculator, with no operator precedence: `2 + 3 × 4 =` gives `20`.
+- **Order of operations** is followed: powers first, then multiplication and division, then addition and subtraction, so `25 + 64 ÷ 2 =` gives `57`. Operators of equal rank go left to right, except powers, which go right to left, so `2 ^ 3 ^ 2 =` gives `512`. The display shows what's waiting, such as `25 + 64 ÷`.
 - **Percent** works as it does on a phone calculator:
   - `200 + 10 %` means 10% of 200, so `=` gives `220`.
   - `200 × 10 %` means 200 × 0.1, so `=` gives `20`.
@@ -220,7 +220,7 @@ npm test -- --coverage
 | Backend `internal/calculator` | 95.6% | Every operation and edge case |
 | Backend `internal/api` | 99.0% | Routing, validation, every error status |
 | Backend `cmd/server` | 22.9% | Startup wiring, exercised by CI's Docker smoke test |
-| Frontend | 100% (98.21% of branches) | Reducer, formatter, paste parser, API client, whole-calculator flows |
+| Frontend | 100% (98.24% of branches) | Reducer, formatter, paste parser, API client, whole-calculator flows |
 
 [docs/coverage.md](docs/coverage.md) has the full report, including what isn't covered and why. CI runs all of this on every push, builds the Docker image, smoke tests it, and keeps the HTML coverage reports as build artifacts. Each push to `main` also updates the coverage badges at the top of this page. They show total statement coverage, read from figures CI publishes to the `badges` branch, so no outside coverage service is involved.
 
@@ -240,6 +240,8 @@ npm test -- --coverage
 
 **A pure reducer for the frontend's logic.** A calculator is a state machine with many small rules, so they live in `reducer.ts`, testable without rendering anything. The reducer never calls the network. It records the request it wants in state, and an effect in `useCalculator` sends it. Pressing Clear removes that request, and the effect's cleanup aborts it, so a late answer can't overwrite the display.
 
+**Order of operations without an expression API.** The keypad keeps a stack of operations waiting on a higher-precedence one, and evaluates them one API call at a time as they become ready: `25 + 64 ÷ 2 =` sends `divide(64, 2)`, then `add(25, 32)`. The API stays one simple operation per call with no parser, and all the arithmetic still happens on the backend. The rules live in the reducer, where they can be tested without a network.
+
 **One request at a time.** Keys are ignored while a request runs, except Clear, so answers can't arrive out of order. They're marked `aria-disabled` rather than `disabled`, which would drop keyboard focus on every request.
 
 **No CORS.** In development Vite proxies `/api`, and in production the Go server serves the frontend, so the browser only ever sees one origin. Not adding CORS means there's no policy to get wrong. Hosting the frontend on another origin would need one.
@@ -255,7 +257,7 @@ npm test -- --coverage
 - **Precision:** results are rounded to 34 decimal places, half away from zero. Anything smaller rounds to `0`, and `1 ÷ 3 × 3` is `0.9999…` internally, though it displays as `1`.
 - **Range:** operands and results must stay below 10¹⁰⁰ in magnitude. Operands can be at most 256 characters, and exponents at most ±1000.
 - **Conventions:** `0^0` is `1`. A negative base with a fractional exponent is an error rather than a complex number, including exact roots such as `(-8)^(1/3)`.
-- **Precedence:** the keypad evaluates strictly left to right. Each API call is one operation, so expression parsing wasn't needed.
+- **Signs:** `±` changes the number itself, so `-2 ^ 2` is `4`, where written maths would read it as `-(2²)`. There are no brackets.
 - **Entry:** the keypad accepts up to 16 digits per number. The API accepts longer operands.
 - **Out of scope:** there's no authentication, rate limiting or calculation history. A public deployment would add rate limiting at the proxy or the server.
 

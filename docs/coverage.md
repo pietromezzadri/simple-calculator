@@ -40,10 +40,10 @@ The HTML report is written to `frontend/coverage/index.html`.
 
 | Measure | Coverage | Count |
 |---|---|---|
-| Statements | 100% | 267 / 267 |
-| Branches | 98.21% | 220 / 224 |
-| Functions | 100% | 66 / 66 |
-| Lines | 100% | 223 / 223 |
+| Statements | 100% | 281 / 281 |
+| Branches | 98.24% | 224 / 228 |
+| Functions | 100% | 70 / 70 |
+| Lines | 100% | 233 / 233 |
 
 The four branches not covered:
 
