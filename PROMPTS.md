@@ -100,3 +100,11 @@ GitHub rejected the first push because my login lacked permission to upload work
 Claude asked before pushing these changes.
 
 > Yes, push
+
+## 8. Order of operations
+
+> what happens if I want to do for example 25+64/2?
+
+Claude explained that the keypad worked left to right, giving 44.5, and asked whether it should follow the standard order of operations instead.
+
+> Yes, add precedence
