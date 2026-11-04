@@ -108,3 +108,9 @@ Claude asked before pushing these changes.
 Claude explained that the keypad worked left to right, giving 44.5, and asked whether it should follow the standard order of operations instead.
 
 > Yes, add precedence
+
+> is the precedence logic done in the frontend or backend?
+
+Claude explained that the frontend decides the order and the backend does the arithmetic.
+
+> push it
