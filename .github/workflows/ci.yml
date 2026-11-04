@@ -10,6 +10,8 @@ permissions:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    outputs:
+      coverage: ${{ steps.test.outputs.coverage }}
     defaults:
       run:
         working-directory: backend
@@ -23,10 +25,12 @@ jobs:
         run: test -z "$(gofmt -l .)"
       - run: go vet ./...
       - name: Test
+        id: test
         run: |
           go test -coverprofile=coverage.out ./...
           go tool cover -func=coverage.out
           go tool cover -html=coverage.out -o coverage.html
+          echo "coverage=$(go tool cover -func=coverage.out | awk '/^total:/ {print $3}')" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v7
         with:
           name: backend-coverage
@@ -36,6 +40,8 @@ jobs:
 
   frontend:
     runs-on: ubuntu-latest
+    outputs:
+      coverage: ${{ steps.test.outputs.coverage }}
     defaults:
       run:
         working-directory: frontend
@@ -49,7 +55,11 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
-      - run: npm test -- --coverage
+      - name: Test
+        id: test
+        run: |
+          npm test -- --coverage
+          echo "coverage=$(node -p "require('./coverage/coverage-summary.json').total.statements.pct")%" >> "$GITHUB_OUTPUT"
       - run: npm run build
       - uses: actions/upload-artifact@v7
         with:
@@ -70,3 +80,30 @@ jobs:
           done
           curl -sf http://localhost:8080/ | grep -q '<div id="root">'
           curl -sf -X POST http://localhost:8080/api/v1/add -d '{"a": 0.1, "b": 0.2}' | grep -q '"0.3"'
+
+  # Publishes the coverage figures that the README's badges read. They live on
+  # their own branch so that updating them doesn't add commits to main.
+  badges:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Publish coverage badges
+        env:
+          BACKEND_COVERAGE: ${{ needs.backend.outputs.coverage }}
+          FRONTEND_COVERAGE: ${{ needs.frontend.outputs.coverage }}
+        run: |
+          write_badge() {
+            color=$(awk -v p="${2%\%}" 'BEGIN { print (p >= 90 ? "brightgreen" : p >= 80 ? "green" : p >= 70 ? "yellow" : p >= 60 ? "orange" : "red") }')
+            printf '{"schemaVersion":1,"label":"%s","message":"%s","color":"%s"}\n' "$1" "$2" "$color" > "$3"
+          }
+          git checkout --orphan badges
+          git rm -rfq .
+          write_badge "backend coverage" "$BACKEND_COVERAGE" backend-coverage.json
+          write_badge "frontend coverage" "$FRONTEND_COVERAGE" frontend-coverage.json
+          git add backend-coverage.json frontend-coverage.json
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -qm "Update coverage badges"
+          git push --force origin badges
