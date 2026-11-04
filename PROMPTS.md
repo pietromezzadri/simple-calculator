@@ -72,3 +72,15 @@ Claude asked these questions before planning. My answers:
 ## 3. Plan approval
 
 Claude then wrote an implementation plan, which I reviewed and approved. It built the project from that plan and stopped for my review before publishing.
+
+## 4. Testing the Docker image
+
+Docker Desktop wasn't running when Claude reached the image test, so it asked me to start it.
+
+> Docker is running
+
+## 5. Publishing
+
+Claude asked whether to publish, and which email the commits should use.
+
+> Publish with Gmail
